@@ -4,6 +4,7 @@
 #define X_AXIS_PIN 32
 #define Y_AXIS_PIN 33
 #define SWITCH_PIN 14
+bool switchUnpressed = true;
 
 // REPLACE WITH YOUR RECEIVER MAC Address
 uint8_t receiverMacAddress[] = {0x08,0xA6,0xF7,0xB1,0xC0,0xA8};  //08:A6:F7:B1:C0:A8
@@ -11,7 +12,7 @@ uint8_t receiverMacAddress[] = {0x08,0xA6,0xF7,0xB1,0xC0,0xA8};  //08:A6:F7:B1:C
 typedef struct PacketData {
   int xAxisValue;
   int yAxisValue;
-  bool switchPressed;
+  bool switchState;
 } PacketData;
 
 PacketData data;
@@ -23,23 +24,18 @@ esp_now_peer_info_t peerInfo;
 //Jotstick values range from 0-4095. But its center value is not always 2047. It is little different.
 //So we need to add some deadband to center value. in our case 1800-2200. Any value in this deadband range is mapped to center 127.
 int mapAndAdjustJoystickDeadBandValues(int value, bool reverse) {
-  if (value >= 2200)
-  {
+  if (value >= 2200) {
     value = map(value, 2200, 4095, 127, 254);
-  }
-  else if (value <= 1800)
-  {
+  } else if (value <= 1800) {
     value = map(value, 1800, 0, 127, 0);  
-  }
-  else
-  {
+  } else {
     value = 127;
   }
 
-  if (reverse)
-  {
+  if (reverse) {
     value = 254 - value;
   }
+
   return value;
 }
 
@@ -83,29 +79,18 @@ void loop()
 {
   data.xAxisValue = mapAndAdjustJoystickDeadBandValues(analogRead(X_AXIS_PIN), false);
   data.yAxisValue = mapAndAdjustJoystickDeadBandValues(analogRead(Y_AXIS_PIN), false);  
-  data.switchPressed = false; 
 
-  if (digitalRead(SWITCH_PIN) == LOW)
-  {
-    data.switchPressed = true;
+  if (digitalRead(SWITCH_PIN) == LOW && switchUnpressed) { //pressed button -> flip state
+    data.switchState != data.switchState;
+    switchUnpressed = false;
+  } else {                                                 //reset once undepressed
+    switchUnpressed = true;
   }
 
   esp_err_t result = esp_now_send(receiverMacAddress, (uint8_t *) &data, sizeof(data));
-  if (result == ESP_OK) 
-  {
+  if (result == ESP_OK) {
     Serial.println("Sent with success");
-  }
-  else 
-  {
+  } else {
     Serial.println("Error sending the data");
   }    
-  
-  if (data.switchPressed == true)
-  {
-    delay(500);
-  }
-  else
-  {
-    delay(50);
-  }
 }
